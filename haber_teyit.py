@@ -1,0 +1,131 @@
+import requests
+from bs4 import BeautifulSoup
+from datetime import datetime, timedelta
+import re
+
+# ---------------------------
+# HABERDEN BİLGİ ÇEK
+# ---------------------------
+def get_article_content(url):
+    headers = {"User-Agent": "Mozilla/5.0"}
+    response = requests.get(url, headers=headers, timeout=10)
+    response.encoding = response.apparent_encoding
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    title = soup.title.string.strip() if soup.title else "Başlık bulunamadı"
+
+    # Metin çekme: p, div, span, article
+    texts = []
+    for tag in soup.find_all(['p', 'div', 'span', 'article']):
+        t = tag.get_text(separator=' ', strip=True)
+        if t:
+            texts.append(t)
+    article_text = " ".join(texts)
+
+    # Eğer çok kısa ise tüm body'yi al
+    if len(article_text) < 50 and soup.body:
+        article_text = soup.body.get_text(separator=' ', strip=True)
+
+    return title, article_text
+
+
+# ---------------------------
+# METİNDEN DEPREM VERİLERİNİ ÇEK
+# ---------------------------
+def extract_info_from_text(text):
+    magnitude = None
+    location = None
+
+    # Büyüklük: 3.7 büyüklüğünde / şiddetinde / 3.7 depremi
+    mag_match = re.search(r'(\d[\.,]?\d?)\s*(?:büyüklüğünde|şiddetinde|depremi|sarsıntı)', text)
+    if mag_match:
+        magnitude = float(mag_match.group(1).replace(",", "."))
+
+    # Yer tahmini (örnek: Balıkesir, İzmir, Malatya)
+    # Daha esnek: "Balıkesir'de deprem", "Balıkesir yakınlarında sarsıntı"
+    location_match = re.search(r'([A-ZÇĞİÖŞÜ][a-zçğıöşü]+)\s*(?:\'de|\'da|\'ta|\'te|yakınlarında)?\s+(?:deprem|sarsıntı)', text)
+    if location_match:
+        location = location_match.group(1)
+
+    return magnitude, location
+
+
+# ---------------------------
+# AFAD'DAN TÜM DEPREMLER
+# ---------------------------
+def get_all_afad_earthquakes():
+    AFAD_URL = "https://deprem.afad.gov.tr/last-earthquakes.html"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    res = requests.get(AFAD_URL, headers=headers, timeout=10)
+    res.encoding = "utf-8"
+    soup = BeautifulSoup(res.text, "html.parser")
+
+    table = soup.find("table")
+    if not table:
+        return []
+
+    rows = table.find_all("tr")[1:]  # başlık satırını atla
+    records = []
+
+    for row in rows:
+        cols = row.find_all("td")
+        if len(cols) >= 7:  # 1-6-7 sütunları alıyoruz
+            tarih = cols[0].text.strip()
+            try:
+                buyukluk = float(cols[5].text.strip())
+            except:
+                buyukluk = 0.0
+            sehir = cols[6].text.strip()
+
+            records.append({
+                "Tarih": tarih,
+                "Büyüklük": buyukluk,
+                "Şehir": sehir
+            })
+
+    return records
+
+
+# ---------------------------
+# HABERİ AFAD VERİSİYLE KARŞILAŞTIR
+# ---------------------------
+def check_with_afad(magnitude, location):
+    print("\n[1.A] AFAD TEYİDİ")
+    print(f"      -> Haberde iddia edilen büyüklük: {magnitude if magnitude else 'Belirtilmemiş'}")
+    print(f"      -> Haberde geçen yer: {location if location else 'Belirtilmemiş'}\n")
+
+    depremler = get_all_afad_earthquakes()
+    if not depremler:
+        return "⚠️ AFAD verisi alınamadı."
+
+    bulundu = False
+    for d in depremler:
+        yer_temiz = d["Şehir"].strip().lower()
+        if magnitude and abs(d["Büyüklük"] - magnitude) <= 0.3:
+            if (not location) or (location.lower() in yer_temiz):
+                bulundu = True
+                return f"✅ DOĞRU: AFAD kayıtlarında {d['Şehir']} civarında {d['Büyüklük']} büyüklüğünde deprem var."
+
+    if not bulundu:
+        return f"❌ YALAN: {magnitude} büyüklüğünde bir deprem kaydı bulunamadı."
+
+
+# ---------------------------
+# ANA ÇALIŞTIRMA
+# ---------------------------
+def verify_earthquake_news(url):
+    print("URL analiz ediliyor, lütfen bekleyin...\n")
+    title, text = get_article_content(url)
+    print(f"📄 Haber Başlığı: {title}\n")
+
+    mag, loc = extract_info_from_text(text)
+    result = check_with_afad(mag, loc)
+    print(result)
+
+
+# ---------------------------
+# MAIN
+# ---------------------------
+if __name__ == "__main__":
+    link = input("Lütfen haber linkini girin: ")
+    verify_earthquake_news(link)

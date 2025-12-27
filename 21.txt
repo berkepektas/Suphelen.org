@@ -1,0 +1,58 @@
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from bs4 import BeautifulSoup
+
+# ====== Chrome ve driver yollarını kendi sistemine göre ayarla ======
+CHROME_PATH = r"C:\Program Files\chrome-win64\chrome.exe"
+CHROMEDRIVER_PATH = r"C:\Users\Berke\Desktop\chromedriver-win64\chromedriver.exe"
+
+def make_driver():
+    options = Options()
+    options.binary_location = CHROME_PATH
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("user-agent=Mozilla/5.0")
+    service = Service(CHROMEDRIVER_PATH)
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+def fetch_milliyet_earthquake_table(url):
+    driver = make_driver()
+    driver.get(url)
+
+    try:
+        # Tablo yüklenene kadar bekle
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.TAG_NAME, "table"))
+        )
+    except:
+        print("⚠️ Tablo bulunamadı veya yüklenmedi.")
+        driver.quit()
+        return
+
+    html = driver.page_source
+    driver.quit()
+
+    soup = BeautifulSoup(html, "html.parser")
+    table = soup.find("table")
+    if not table:
+        print("⚠️ Sayfada tablo yok.")
+        return
+
+    # Tabloyu satır satır oku
+    headers = [th.get_text(strip=True) for th in table.find_all("th")]
+    print("Tablo başlıkları:", headers)
+    for tr in table.find_all("tr")[1:]:
+        tds = [td.get_text(strip=True) for td in tr.find_all("td")]
+        if tds:
+            row = dict(zip(headers, tds))
+            print(row)
+
+if __name__ == "__main__":
+    url = input("Milliyet Son Depremler linki gir: ").strip()
+    fetch_milliyet_earthquake_table(url)
