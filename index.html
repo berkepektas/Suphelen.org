@@ -233,7 +233,7 @@
             const linkInput = document.getElementById('haberLinkInput'); // Input elementini al
             const link = linkInput.value.trim(); // Değeri al ve boşlukları temizle
 
-            const apiURL = 'http://127.0.0.1:5000/api/dogrula'; // Backend API adresi
+            const apiURL = 'https://suphelen-org-backend-2.onrender.com/'; // Backend API adresi
 
             // Linkin geçerli olup olmadığını kontrol et
             if (!link) {
@@ -302,7 +302,7 @@
         // Bu fonksiyon, sayfa yüklendiğinde gündem haberlerini backend'den çeker ve ekrana basar.
         async function gundemHaberleriniYukle() {
             const gundemContainer = document.getElementById('gundemContainer');
-            const apiURL = 'http://127.0.0.1:5000/api/gundem'; // Gündem API adresi
+            const apiURL = 'https://suphelen-org-backend-2.onrender.com/'; // Gündem API adresi
 
             // Başlangıçta yükleniyor mesajı göster
             gundemContainer.innerHTML = '<p style="color: #ccc;">Gündem haberleri yükleniyor...</p>';
